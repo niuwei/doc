@@ -62,7 +62,7 @@ iOS用Hit-Testing来查找哪个view被点击了。Hit-Testing检查点击是否
 
 找到响应者后，响应者可以重写以下方法来对触摸事件做响应：
 
-```
+```objc
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesBegan:touches withEvent:event];//让下一个响应者可以有机会继续处理
 }
