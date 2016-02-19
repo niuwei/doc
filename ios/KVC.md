@@ -1,4 +1,4 @@
-# KVC
+# KVC（Key-Value Coding）
 
 ## 键值编码
 
@@ -110,30 +110,177 @@ NSArray *items = [model valueForKey:@"items"];
 ```
 setValue:forKey:会查找setItems方法。
 
-3、如果有方法countOfItems，和objectInItemsAtIndex或itemsAtIndexes二者之一，KVC会创建一个代理数组：
+## 集合访问器方法（collection accessor methods）
+
+直接读写对象中集合对象的内容，而不需要先拿出操作对象中的集合对象，在操作这个集合。
+
+好处：提高性能；模糊与NSArray或NSSet的差别；兼容KVO。
+
+### 有序集合访问器
+
+#### 只读索引集合访问器
+
+* -countOf\<Key>: 必须。类似NSArray的count方法。
+* -objectIn\<Key>AtIndex: 或 -\<key>AtIndexes: 二选一。对应NSArray的objectAtIndex: and objectsAtIndexes:方法。
+* -get\<Key>:range: 可选。可提高性能。对应NSArray的getObjects:range:方法。
 
 ```objc
-@implementation DataModelObj
-- (NSUInteger)countOfItems { return 10; }
-// 下面两个方法二选一即亦可：
-- (id)objectInItemsAtIndex:(NSUInteger)index {
-    return [NSNumber numberWithInt:index*2];
+- (NSUInteger)countOfEmployees {
+    return [self.employees count];
 }
-- (NSArray *)itemsAtIndexes:(NSIndexSet *)indexes {
-    return [[NSArray alloc] initWithObjects:[NSNumber numberWithInt:1], nil];
+
+- (id)objectInEmployeesAtIndex:(NSUInteger)index {
+    return [employees objectAtIndex:index];
+}
+ 
+- (NSArray *)employeesAtIndexes:(NSIndexSet *)indexes {
+    return [self.employees objectsAtIndexes:indexes];
+}
+
+- (void)getEmployees:(Employee * __unsafe_unretained *)buffer range:(NSRange)inRange {
+    // Return the objects in the specified range in the provided buffer.
+    // For example, if the employees were stored in an underlying NSArray
+    [self.employees getObjects:buffer range:inRange];
 }
 ```
-此时valueForKey的返回值是一个包含10个元素（根据countOfItems:方法）的数组，数组的元素是根据objectInItemsAtIndex:和itemsAtIndexes:方法设置的规则返回的。比如依据objectInItemsAtIndex:规则，返回的数组是NSNumber类型的，值为：2、4、6、8...直到20。
 
-4、如果有方法countOfItems，enumeratorOfItems和mumberOfItems三个方法的组合时，KVC返回一个代理集合：
+比如当我们调用 [object valueForKey:@"employees”] 的时候，它会返回一个由上面方法来代理所有调用方法的 NSArray 对象。这个数组支持所有正常的对 NSArray 的调用。换句话说，调用者并不知道返回的是一个真正的 NSArray， 还是一个代理的数组。
 
-这里就不举代码例子了，因为没有尝试成功过。具体可以看文档：
+#### 可变索引集合访问器
 
-[Key-Value Coding Accessor Methods](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/AccessorConventions.html#//apple_ref/doc/uid/20002174-BAJEAIEE)
+* -insertObject:in\<Key>AtIndex: 或 -insert\<Key>:atIndexes: 二选一。对应NSMutableArray的insertObject:atIndex: 和 insertObjects:atIndexes:。
+* -removeObjectFrom\<Key>AtIndex: or -remove\<Key>AtIndexes:. 二选一。对应NSMutableArray的 removeObjectAtIndex: 和 removeObjectsAtIndexes:。
+* -replaceObjectIn\<Key>AtIndex:withObject: 或 -replace<Key>AtIndexes:with<Key>: 可选。可提高性能。
+
+```objc
+- (void)insertObject:(Employee *)employee inEmployeesAtIndex:(NSUInteger)index {
+    [self.employees insertObject:employee atIndex:index];
+    return;
+}
+ 
+- (void)insertEmployees:(NSArray *)employeeArray atIndexes:(NSIndexSet *)indexes {
+    [self.employees insertObjects:employeeArray atIndexes:indexes];
+    return;
+}
+
+- (void)removeObjectFromEmployeesAtIndex:(NSUInteger)index {
+    [self.employees removeObjectAtIndex:index];
+}
+ 
+- (void)removeEmployeesAtIndexes:(NSIndexSet *)indexes {
+    [self.employees removeObjectsAtIndexes:indexes];
+}
+
+- (void)replaceObjectInEmployeesAtIndex:(NSUInteger)index
+                             withObject:(id)anObject {
+ 
+    [self.employees replaceObjectAtIndex:index withObject:anObject];
+}
+ 
+- (void)replaceEmployeesAtIndexes:(NSIndexSet *)indexes
+                    withEmployees:(NSArray *)employeeArray {
+ 
+    [self.employees replaceObjectsAtIndexes:indexes withObjects:employeeArray];
+}
+```
+
+### 无序集合
+
+#### 只读无序集合访问器
+
+* -countOf\<Key> 必须。对应NSSet的count方法。
+* -enumeratorOf\<Key> 必须. 对应NSSet的objectEnumerator方法。
+* -memberOf\<Key>: 必须。对应NSSet的member:方法。
+
+```objc
+- (NSUInteger)countOfTransactions {
+    return [self.transactions count];
+}
+ 
+- (NSEnumerator *)enumeratorOfTransactions {
+    return [self.transactions objectEnumerator];
+}
+ 
+- (Transaction *)memberOfTransactions:(Transaction *)anObject {
+    return [self.transactions member:anObject];
+}
+```
+
+#### 可变无序集合访问器
+
+* -add\<Key>Object: 或 -add\<Key>: 二选一。对应NSMutableSet的addObject:。
+* -remove\<Key>Object: 或 -remove\<Key>: 。对应NSMutableSet的removeObject:。
+* -intersect<Key>: 可选的。可提高性能。对应NSSet的intersectSet:。
+
+```objc
+- (void)addTransactionsObject:(Transaction *)anObject {
+    [self.transactions addObject:anObject];
+}
+ 
+- (void)addTransactions:(NSSet *)manyObjects {
+    [self.transactions unionSet:manyObjects];
+}
+
+- (void)removeTransactionsObject:(Transaction *)anObject {
+    [self.transactions removeObject:anObject];
+}
+ 
+- (void)removeTransactions:(NSSet *)manyObjects {
+    [self.transactions minusSet:manyObjects];
+}
+
+- (void)intersectTransactions:(NSSet *)otherObjects {
+    return [self.transactions intersectSet:otherObjects];
+}
+```
 
 ## 键值验证
 
-需要指出的是， KVC是不会自动调用键值验证方法的，就是说我们需要手动验证。但是有些技术，比如CoreData会自动调用。
+KVC提供了验证Key对应的Value是否可用的方法：
+
+```objc
+- (BOOL)validateValue:(inout id *)ioValue forKey:(NSString *)inKey error:(out NSError **)outError;  
+```
+该方法默认的实现是调用validate<Key>:error:。比如对属性name：
+
+```objc
+-(BOOL)validateName:(id *)ioValue error:(NSError * __autoreleasing *)outError {
+    // Implementation specific code.
+    return ...;
+}
+```
+
+需要指出的是，KVC是不会自动调用键值验证方法的，就是说我们需要手动验证。但是有些技术，比如CoreData会自动调用。
+
+可以在设置Value之前调用validateValue:forKey:error:验证对应key的value是否可用，在对象里重载validate<Key>:error:做具体判断。具体判断的方式参考：[Key-Value Validation](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/Validation.html#//apple_ref/doc/uid/20002173-CJBDBHCB)
+
+## 数值和结构体支持
+
+KVC可以自动的将数值或结构体型的数据打包或解包成NSNumber或NSValue对象。
+
+* valueForKey:对于指定key的属性或访问器方法的返回值，不是对象的，就创建NSNumber或NSValue将值封装后返回。
+* setValue:forKey:对于指定key的属性或访问器方法的参数，不是对象，就将参数用-<type>Value方法展开后赋值。
+* 当setValue:forKey:如果给一个非空对象属性设置nil，对象会给自己发送setNilValueForKey:消息，默认处理是抛出异常。
+
+自动打包和解包结构体不仅限于NSPoint, NSRange, NSRect, 和 NSSize。任何结构体都是可以转化成NSValue对象的，比如:
+
+```objc
+typedef struct {
+    float x, y, z;
+} ThreeFloats;
+ 
+@interface MyClass
+- (void)setThreeFloats:(ThreeFloats)threeFloats;
+- (ThreeFloats)threeFloats;
+@end
+
+MyClass *mc = [[MyClass alloc] init];
+NSValue *value = [mc valueForKey:@"threeFloats"]; // 调用threeFloats，结果用NSValue封装
+NSValue *newValue = [NSValue value:&mc withObjCType:@encode(struct ThreeFloats);
+[mc setValue:newValue forKey:@"threeFloats"]; // 调用setThreeFloats:，对NSValue对象参数发送getValue:消息解包
+```
+
+> 注意：该机制不考虑引用计数和垃圾回收。
 
 参考：
 
