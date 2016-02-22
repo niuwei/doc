@@ -73,43 +73,6 @@ KVC方法有key和keyPath两个版本，比如valueForKey:和valueForKeyPath:。
 }
 ```
 
-## valueForKey的搜索规则
-
-当valueForKey:寻找items时：
-
-```objc
-@interface DataModelObj : NSObject
-@end
-
-DataModelObj *model = [[DataModelObj alloc] init];
-NSArray *items = [model valueForKey:@"items"];
-```
-
-1、 如果有名为items，isItems，_items，_isItems的实例变量，KVC会直接访问这些实例变量。下面这些实例变量都能直接访问到：
-
-```obcj
-@interface DataModelObj : NSObject {
-    NSArray *items;
-// 或者命名为：isItems, _items, _isItems
-}
-// 或者：
-// @property (nonatomic, strong) NSArray *items;
-// 或者命名为：isItems, _items, _isItems
-@end
-```
-
-2、如果有名为items，getItems，isItems的方法，会返回找到的第一个方法的值：
-
-```objc
-@implementation DataModelObj
-// 最上面的方法第一个找到，valueForKey:@"items"返回1
-- (NSUInteger)items { return 1; }
-- (NSUInteger)getItems { return 2; }
-- (NSUInteger)isItems { return 3; }
-@end
-```
-setValue:forKey:会查找setItems方法。
-
 ## 集合访问器方法（collection accessor methods）
 
 直接读写对象中集合对象的内容，而不需要先拿出操作对象中的集合对象，在操作这个集合。
@@ -150,7 +113,7 @@ setValue:forKey:会查找setItems方法。
 
 * -insertObject:in\<Key>AtIndex: 或 -insert\<Key>:atIndexes: 二选一。对应NSMutableArray的insertObject:atIndex: 和 insertObjects:atIndexes:。
 * -removeObjectFrom\<Key>AtIndex: or -remove\<Key>AtIndexes:. 二选一。对应NSMutableArray的 removeObjectAtIndex: 和 removeObjectsAtIndexes:。
-* -replaceObjectIn\<Key>AtIndex:withObject: 或 -replace<Key>AtIndexes:with<Key>: 可选。可提高性能。
+* -replaceObjectIn\<Key>AtIndex:withObject: 或 -replace\<Key>AtIndexes:with\<Key>: 可选。可提高性能。
 
 ```objc
 - (void)insertObject:(Employee *)employee inEmployeesAtIndex:(NSUInteger)index {
@@ -210,7 +173,7 @@ setValue:forKey:会查找setItems方法。
 
 * -add\<Key>Object: 或 -add\<Key>: 二选一。对应NSMutableSet的addObject:。
 * -remove\<Key>Object: 或 -remove\<Key>: 。对应NSMutableSet的removeObject:。
-* -intersect<Key>: 可选的。可提高性能。对应NSSet的intersectSet:。
+* -intersect\<Key>: 可选的。可提高性能。对应NSSet的intersectSet:。
 
 ```objc
 - (void)addTransactionsObject:(Transaction *)anObject {
@@ -241,7 +204,7 @@ KVC提供了验证Key对应的Value是否可用的方法：
 ```objc
 - (BOOL)validateValue:(inout id *)ioValue forKey:(NSString *)inKey error:(out NSError **)outError;  
 ```
-该方法默认的实现是调用validate<Key>:error:。比如对属性name：
+该方法默认的实现是调用validate\<Key>:error:。比如对属性name：
 
 ```objc
 -(BOOL)validateName:(id *)ioValue error:(NSError * __autoreleasing *)outError {
@@ -252,7 +215,7 @@ KVC提供了验证Key对应的Value是否可用的方法：
 
 需要指出的是，KVC是不会自动调用键值验证方法的，就是说我们需要手动验证。但是有些技术，比如CoreData会自动调用。
 
-可以在设置Value之前调用validateValue:forKey:error:验证对应key的value是否可用，在对象里重载validate<Key>:error:做具体判断。具体判断的方式参考：[Key-Value Validation](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/Validation.html#//apple_ref/doc/uid/20002173-CJBDBHCB)
+可以在设置Value之前调用validateValue:forKey:error:验证对应key的value是否可用，在对象里重载validate\<Key>:error:做具体判断。具体判断的方式参考：[Key-Value Validation](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/Validation.html#//apple_ref/doc/uid/20002173-CJBDBHCB)
 
 ## 数值和结构体支持
 
@@ -282,6 +245,35 @@ NSValue *newValue = [NSValue value:&mc withObjCType:@encode(struct ThreeFloats);
 
 > 注意：该机制不考虑引用计数和垃圾回收。
 
-参考：
+## valueForKey的搜索规则
 
-[Key-Value Coding Programming Guide](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/KeyValueCoding.html#//apple_ref/doc/uid/10000107i)
+KVC再某种程度上提供了访问器的替代方案。KVC优先使用访问器方法设置或者返回对象属性，其次才直接访问对象属性。以下是KVC如何决定访问一个值：
+
+### setValue:forKey:的默认搜索规则
+
+1. 搜索访问器方法：set\<Key>:
+2. 没有访问器方法，且对象方法accessInstanceVariablesDirectly返回YES，按顺序搜索：_\<key>, _is\<Key>, \<key>, is\<Key>
+3. 都没有，就调用对象的setValue:forUndefinedKey:
+
+### valueForKey:的默认搜索规则
+
+1. 按顺序搜索：get\<Key>, \<key>, is\<Key>
+2. 没有上面的访问器方法，搜索：countOf\<Key> 和 objectIn\<Key>AtIndex: 或 \<key>AtIndexes: ，后者二选一。创建NSArray集合代理对象，所有发送给代理集合对象的消息，都会通过上面这三个方法，发送给valueForValue:的原始对象。
+3. 上面的都没有，搜索：countOf\<Key>, enumeratorOf\<Key>, memberOf\<Key>: ，创建NSSet集合代理对象。
+4. 否则，对象的方法 accessInstanceVariablesDirectly 返回 YES，按顺序搜索： _\<key>, _is\<Key>, \<key>, is\<Key>
+5. 都没有，调用对象的valueForUndefinedKey:
+
+### mutableArrayValueForKey:访问有序集合的搜索规则
+
+1. 搜索：insertObject:in\<Key>AtIndex: 和 removeObjectFrom\<Key>AtIndex: 或insert\<Key>:atIndexes: 和 remove\<Key>AtIndexes:，创建NSMutableArray集合代理对象。
+2. 搜索：set\<Key>:，有性能问题，推荐上面的方法。
+3. 如果方法accessInstanceVariablesDirectly返回YES，按顺序搜索： _\<key> 或 \<key>,
+4. 都没有，调用setValue:forUndefinedKey
+
+> mutableOrderedSetValueForKey: 和 mutableSetValueForKey:的搜索规则与Array的类似，就不一一列举了。
+
+
+
+参考：  
+[Key-Value Coding Programming Guide](https://developer.apple.com/library/mac/documentation/Cocoa/Conceptual/KeyValueCoding/Articles/KeyValueCoding.html#//apple_ref/doc/uid/10000107i)  
+[KVC/KVO原理详解及编程指南](http://blog.csdn.net/wzzvictory/article/details/9674431#)
