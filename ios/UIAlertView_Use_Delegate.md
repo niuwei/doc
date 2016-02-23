@@ -116,3 +116,35 @@ ViewControllerSuper.m:
 通过这件事情也感受出，同样是callback，delegate和block还是有这些不同的。block不但直观看到回调代码，而且还可以拒绝出现这种继承关系导致的不明确。
 
 > ios8中已经将UIAlertView和UIActionSheet废弃了，取而代之的是UIAlertController，这货不需要设置delegate，通过UIAlertAction的最后一个参数handler添加block来处理callback，比之前的强多了。
+
+## 正确的方法
+
+对于这类采用代理对象来处理回调的情况，为处理继承的因素，一般的方法是：
+
+1、在创建的时候添加tag标示：
+
+```objc
+- (void)showAlert {
+    UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Title"
+                                                        message:@"XXX message"
+                                                       delegate:self
+                                              cancelButtonTitle:@"NO"
+                                              otherButtonTitles:@"YES", nil];
+    [alertView setTag:100];
+    [alertView show];
+}
+```
+
+2、在处理的时候，本类只负责处理本类拥有tag的回调，否则就交予父类处理：
+
+```objc
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if (alertView.tag == 100) {
+        NSLog(@"alert calback on super class.");
+    } else {
+        [super alertView:alertView clickedButtonAtIndex];
+    }
+}
+```
+
+同KVO的处理observeValueForKeyPath:ofObject:change:context:消息一样，这样回调方法固定的方式收到的消息，都应该这样处理。上面的处理方式仅作权宜之用，如果子类太多，对代码也不熟悉的情况下。

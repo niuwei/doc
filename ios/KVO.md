@@ -250,7 +250,7 @@ keyPathsForValuesAffectingValueForKey:方法不支持一对多关系的key-paths
 
 方案二：如果使用Core Data，可以在app通知中心，注册父级为他管理的相关对象的观察者，父级应当以类似KVO的方式返回孩子对象通知的相应变化。
 
-## 实现原理
+## KVO的实现原理
 
 KVO是由isa-swizzling技术实现的。
 
@@ -369,6 +369,19 @@ int main(int argc, char * argv[]) {
 	Using libobjc functions, normal setX: is 0x105540e10, overridden setX: is 0x105675b5f
 ```
 除了最后的setX方法和文章中所述不同（这里两种方法获得的地址是一样的），其他的基本是一致的。
+
+## KVO的缺陷
+
+1. addObserver:forKeyPath:options:context: 不能传入自定义selector用来调用。  
+不像NSNotificationCenter那样，当指定事件发生时，你传入的selecter会被调用，这将很容易区别消息的接收者是本类还是父类。在KVO中你只能重载observeValueForKeyPath:ofObject:change:context:，然后消息是本类处理还是交由父类，判断的依据得靠keyPath，不能和父类是相同的keyPath（问题通UIAlertView的消息回调一样，这里我想也可以通过判断context是不是和self相同来判断）。
+
+2. context指针没什么用。  
+这是上面问题的继续。你不能指定调用自定义方法，而且无法判断，通过验证keyPath，父类是否可以处理这个消息回调。通过context指针判断可能是一个途径，给context指针一个独一无二的指针。这样你就无法将真正有用的东西传递给context了。
+
+3. -removeObserver:forKeyPath:没有足够的参数。  
+这个方法不能得到context指针。这意味着，如果你和父类以相同keyPath注册了KVO，但父子类生存期不同，你将无法只删除你的观察者。可能删除的是你的或者父类的，也可能都删除。
+
+> 其实上面说的这些缺陷，可以认为是缺陷，也可以认为不是。使用selecter固然可以在继承关系中明确处理回调到底在哪个层级，然而使用代理，可以通过继承关系让子类取代父类处理，改变其行为方式，也是面向对象的灵活之处。
 
 参考：
 
