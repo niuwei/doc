@@ -16,7 +16,9 @@ Core Data 管理模型对象。Core Data是object-graph管理和持久化框架�
 * 一个托管对象模型（managed object model），描述存储的实体。
 * 一个托管对象上下文（managed object context），提供托管对象的数据暂存器（scratch pad）。
 
-![Core Data stack](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/single_persistent_stack.jpg)
+[Core Data stack url]:https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/single_persistent_stack.jpg
+
+![Core Data stack][Core Data stack url]
 
 A stack is effectively defined by a persistent store coordinator—there is one and only one per stack. Creating a new persistent store coordinator implies creating a new stack. By implication, there is therefore only one model, although it may be aggregated from multiple models. There may be multiple stores—and hence object stores—and multiple managed object contexts.
 
@@ -62,9 +64,19 @@ A managed object context is usually connected directly to a persistent store coo
 
 ## 托管对象模型（Managed object model）
 
+托管对象模型是一组对象，它们在一起形成描述你app中的托管对象的蓝图。模型是Core Data在持久化存储记录和托管对象之间的映射。它是实体描述对象（entity description objects）的集合（NSEntityDescription实例）。一个“实体描述”描述了一个实体（可以想象为数据库的表）的名称条目，类名描述了app中的实体，和它的特性（属性和关系）。
 
+![Managed object model][Core Data stack url]
 
+## 持久化对象存储（Persistent object store）
 
+持久化对象存储是你app里的对象和持久化存储中记录的映射。那些不同的持久化对象存储类代表不同Core Data支持的不同文件类型。你也可以实现自己想要支持的文件类型。
+
+你不能直接创建持久化对象存储。当你发送addPersistentStoreWithType:configuration:URL:options:error:消息给持久化存储协调器时，Core Data为你创建适当类型的存储。
+
+## 映射模型（Mapping model）
+
+Core Data映射模型描述了一种迁移数据必须的转换，从源托管对象模型描述到目的模型描述。当你做个新版本的代理对象模型，你需要从旧图表迁移持久化数据到新图表。对于简单的模型修改，Core Data能够推断需要的映射。对于复杂的修改，你需要提供一个映射模型描述如果执行迁移。
 
 参考：
 
