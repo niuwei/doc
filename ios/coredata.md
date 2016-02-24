@@ -10,41 +10,66 @@ Core Data 管理模型对象。Core Data是object-graph管理和持久化框架�
 
 ## Core Data模块
 
+[Core Data stack url]:https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/single_persistent_stack.jpg
+
+![Core Data stack][Core Data stack url]
+
+从下到上依次为：
+
 * 一个外部持久化存储（external persistent store），用来保存数据记录。
 * 一个持久化对象存储（persistent object store），映射存储中的记录和程序中的对象。
 * 一个持久化存储协调器（persistent store coordinator），聚合所有的存储。
 * 一个托管对象模型（managed object model），描述存储的实体。
 * 一个托管对象上下文（managed object context），提供托管对象的数据暂存器（scratch pad）。
 
-[Core Data stack url]:https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/single_persistent_stack.jpg
+一个stack只有一个coordinator。创建新的coordinator意味着创建新的stack。多个model可以汇总为一个，这个model有多个store，多个context，但coordinator只有一个。
 
-![Core Data stack][Core Data stack url]
-
-A stack is effectively defined by a persistent store coordinator—there is one and only one per stack. Creating a new persistent store coordinator implies creating a new stack. By implication, there is therefore only one model, although it may be aggregated from multiple models. There may be multiple stores—and hence object stores—and multiple managed object contexts.
-
-A managed object context is usually connected directly to a persistent store coordinator, but may be connected to another context in a parent-child relationship.
+托管对象上下文通常直接连接持久化存储协调器，但被其他上下文连接形成父子关系。
 
 ## 托管对象（Managed object）
 
-托管对象，是持久化存储的一条记录的对象模型（MVC模型）。他是NSManagedObject或其子类实例。托管对象注册为托管对象上下文。一个给定的上下文中，只有一个持久化存储对象实例，映射持久化存储的一条记录。
+托管对象，作为MVC中的model，代表存储中的一条记录。他是 <a name="fenced-code-block">NSManagedObject</a> 或其子类实例。托管对象由context注册，一个托管对象代表store中的一条记录（record）。
 
 ![Managed object](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/mapping_moc_record.jpg)
 
-托管对象保存实体描述对象（entity description object）的引用，后者告诉我们实体代表的意义。因此，NSManagedObject可以代表任何实体，你不需要给每个实体一个独一无二的子类。你可以定义子类实现自定义行为，例如，计算派生的属性值，或实现验证逻辑。
+托管对象有其代表的实体的实体描述（entity description）对象的引用。因此，NSManagedObject可以代表任何实体，你不需要给每个实体定义一个子类。当然，你也可以定义子类实现一些附加行为，比如，计算派生的属性值，或实现验证逻辑。
 
 ## 托管对象上下文（Managed object context）
 
-托管对象上下文代表Core Data程序的一个单独对象空间，或者数据暂存器。托管对象上下文是NSManagedObjectContext的实例。它的首要职责是管理一个托管对象的集合。这些托管对象代表一个或多个持久化存储的内部一致视图。上下文是一个强大的的对象，在托管对象的声明周期内位于中心角色。有生命周期管理职责，以验证、逆转管理处理，和undo/redo。
+托管对象上下文代表Core Data程序的一个单独对象空间，或者数据暂存器（scratch pad）。他是 <a name="fenced-code-block">NSManagedObjectContext</a> 的实例。它的主要管理一个托管对象的集合。这些托管对象表现为一个或多个存储的一致性视图。它管理托管对象生命期、监测数据变化、更新绑定数据到UI，和undo/redo。
 
-托管对象上下文，是Core Data stack的中心。可以用来创建和获取托管对象，管理undo、redo操作。在它的管理下，至多由一个托管对象就可以代表持久化存储的一条记录。
+托管对象上下文是Core Data stack的中心。它可以创建（create）和抓取（fetch）托管对象，管理undo、redo操作。给定了上下文，一个托管对象就代表存储的一条记录。
 
 ![Managed object context](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/moc_record.jpg)
 
-上下文可以连接父级对象存储，通常是一个持久化存储协调器，也可以是另一个托管对象上下文。当你请求对象，上下文向父级对象存储发出请求。你对托管对象的修改直到你保存上下文的时候才会提交给父级存储。
+context可以连接父级，父级可以是coordinator或者另一个context。当抓取（fetch）对象时，context会向父级发出抓取请求。你对托管对象的修改直到你保存context的时候才会提交给父级。
+
+### 用法
+
+当创建一个数据对象并插入 Managed Object Context 中，Managed Object Context 就开始跟踪这个数据对象的一切变动，并在合适的时候提供对 undo/redo 的支持，或调用 Persistent Store Coordinato 将变化保存到数据文件中去。
+
+通常我们将 controller 类（如：NSArrayController，NSTreeController）或其子类与 Managed Object Context 绑定，这样就方便我们动态地生成，获取数据对象等。
+
+NSManagedObjectContext 常用方法
+
+Method        | Introduce
+------------- | -------------
+-save:         |将数据对象保存到数据文件
+-objectWithID: | 	查询指定 Managed Object ID 的数据对象
+-deleteObject: |	将一个数据对象标记为删除，但是要等到 Context 提交更改时才真正删除数据对象
+-undo |	回滚最后一步操作，这是都 undo/redo 的支持
+-lock |	加锁，常用于多线程以及创建事务。同类接口还有：-unlock and -tryLock
+-rollback|	还原数据文件内容
+-reset	|清除缓存的 Managed Objects。只应当在添加或删除 Persistent Stores 时使用
+-undoManager  |	返回当前 Context 所使用的 NSUndoManager
+-assignObject:toPersistantStore: |	由于 Context 可以管理从不同数据文件而来的数据对象，这个接口的作用就是指定数据对象的存储数据文件（通过指定 PersistantStore 实现）
+-executeFetchRequest:error: |	执行 Fetch Request 并返回所有匹配的数据对象
 
 ## 持久化存储协调器（Persistent store coordinator）
 
-持久化存储协调器，关联持久化对象存储和托管对象模型，给托管对象上下文提供了的外观（facade）模式，使一组持久化存储当做一个单独的存储。它是NSPersistentStoreCoordinator的实例。它有托管对象模型的引用。当你请求数据，Core Data检索所有store，除非你指定了store。
+持久化存储协调器，关联存储和托管对象模型，用外观（facade）模式，把一组存储当做一个提供给context。它是 <a name="fenced-code-block">NSPersistentStoreCoordinator</a> 的实例。它有托管对象模型的引用，以描述实体和它管理的存储。
+
+复杂的程序中有多个store，每个store包含不同实体（entities），coordinator的作用是提供给contexts这些store的facade。当你请求数据，Core Data检索所有store，除非你指定了store。
 
 ![Persistent store coordinator](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/advanced_persistent_stack.jpg)
 
@@ -64,7 +89,7 @@ A managed object context is usually connected directly to a persistent store coo
 
 ## 托管对象模型（Managed object model）
 
-托管对象模型是一组对象，它们在一起形成描述你app中的托管对象的蓝图。模型是Core Data在持久化存储记录和托管对象之间的映射。它是实体描述对象（entity description objects）的集合（NSEntityDescription实例）。一个“实体描述”描述了一个实体（可以想象为数据库的表）的名称条目，类名描述了app中的实体，和它的特性（属性和关系）。
+托管对象模型，是描述你程序中一系列托管对象组织的模型。它把存储中的记录映射为托管对象。这个模型包含实体描述对象（entity description objects，<a name="fenced-code-block"> NSEntityDescription</a> 实例），实体可以看数据库的一个表，表的条目包含：实体的名称、程序中代表实体的类名、实体的特征（properties）。
 
 ![Managed object model][Core Data stack url]
 
@@ -72,14 +97,23 @@ A managed object context is usually connected directly to a persistent store coo
 
 持久化对象存储是你app里的对象和持久化存储中记录的映射。那些不同的持久化对象存储类代表不同Core Data支持的不同文件类型。你也可以实现自己想要支持的文件类型。
 
-你不能直接创建持久化对象存储。当你发送addPersistentStoreWithType:configuration:URL:options:error:消息给持久化存储协调器时，Core Data为你创建适当类型的存储。
+你不能直接创建持久化对象存储。当你发送addPersistentStoreWithType:configuration:URL:options:error:消息给coordinator时，Core Data为你创建适当类型的存储。
 
 ## 映射模型（Mapping model）
 
 Core Data映射模型描述了一种迁移数据必须的转换，从源托管对象模型描述到目的模型描述。当你做个新版本的代理对象模型，你需要从旧图表迁移持久化数据到新图表。对于简单的模型修改，Core Data能够推断需要的映射。对于复杂的修改，你需要提供一个映射模型描述如果执行迁移。
 
+## 代码实现
+
+1. 应用程序先创建或读取模型文件（后缀为xcdatamodeld）生成 NSManagedObjectModel 对象。Document应用程序是一般是通过 NSDocument 或其子类 NSPersistentDocument）从模型文件（后缀为 xcdatamodeld）读取。  
+2. 然后生成 NSManagedObjectContext 和 NSPersistentStoreCoordinator 对象，前者对用户透明地调用后者对数据文件进行读写。  
+3. NSPersistentStoreCoordinator 负责从数据文件(xml, sqlite,二进制文件等)中读取数据生成 Managed Object，或保存 Managed Object 写入数据文件。  
+4. NSManagedObjectContext 参与对数据进行各种操作的整个过程，它持有 Managed Object。我们通过它来监测 Managed Object。监测数据对象有两个作用：支持 undo/redo 以及数据绑定。这个类是最常被用到的。  
+5. Array Controller, Object Controller, Tree Controller 这些控制器一般与 NSManagedObjectContext 关联，因此我们可以通过它们在 nib 中可视化地操作数据对象。
+
+
 参考：
 
 [Core Data Core Competencies](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/coreDataOverview.html#//apple_ref/doc/uid/TP40010398-CH28-SW1)  
 [[Cocoa]深入浅出 Cocoa 之 Core Data（1）- 框架详解](http://blog.csdn.net/kesalin/article/details/6739319)  
-[Core Data入门](http://blog.csdn.net/q199109106q/article/details/8563438/)
+[[Cocoa]深入浅出 Cocoa 之 Core Data（2）- 手动编写代码](http://blog.csdn.net/kesalin/article/details/6746117)
