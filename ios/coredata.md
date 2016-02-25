@@ -28,11 +28,24 @@ Core Data 管理模型对象。Core Data是object-graph管理和持久化框架�
 
 ## 托管对象（Managed object）
 
-托管对象，作为MVC中的model，代表存储中的一条记录。他是 <a name="fenced-code-block">NSManagedObject</a> 或其子类实例。托管对象由context注册，一个托管对象代表store中的一条记录（record）。
+托管对象，作为MVC中的model，代表存储中的一条记录（record）。他是 <a name="fenced-code-block">NSManagedObject</a> 或其子类实例，其在内存中对应实体（Entity，相当于表）的一条数据，数据成员为实体的Property。托管对象由context注册，一个托管对象代表store中的一条记录。
+
+托管对象有实体描述（NSEntityDescription，相当于数据库中的一个表）对象的引用。一般不需要给每个实体定义一个NSManagedObject子类。当然，你也可以把特定实体定义为NSManagedObject子类，来实现一些附加行为：比如，计算派生的属性值，或实现验证逻辑。
 
 ![Managed object](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/mapping_moc_record.jpg)
 
-托管对象有其代表的实体的实体描述（entity description）对象的引用。因此，NSManagedObject可以代表任何实体，你不需要给每个实体定义一个子类。当然，你也可以定义子类实现一些附加行为，比如，计算派生的属性值，或实现验证逻辑。
+### 用法
+
+每一个 Managed Object 都有一个全局 ID（类型为：NSManagedObjectID）。Managed Object 会附加到一个 Managed Object Context，我们可以通过这个全局 ID 在 Managed Object Context 查询对应的 Managed Object。
+
+NSManagedObject 常用方法：
+
+Method        | Introduce
+------------- | -------------
+entity           | 获取其 Entity
+objectID         | 获取其 Managed Object ID
+valueForKey:     | 获取指定 Property 的值
+setValue:forKey: | 设定指定 Property 的值
 
 ## 托管对象上下文（Managed object context）
 
@@ -46,24 +59,24 @@ context可以连接父级，父级可以是coordinator或者另一个context。�
 
 ### 用法
 
-当创建一个数据对象并插入 Managed Object Context 中，Managed Object Context 就开始跟踪这个数据对象的一切变动，并在合适的时候提供对 undo/redo 的支持，或调用 Persistent Store Coordinato 将变化保存到数据文件中去。
+当创建一个数据对象并插入 Managed Object Context 中，Context就开始跟踪这个数据对象的一切变动，并在合适的时候提供对 undo/redo 的支持，或将变化保存到数据文件中去。
 
 通常我们将 controller 类（如：NSArrayController，NSTreeController）或其子类与 Managed Object Context 绑定，这样就方便我们动态地生成，获取数据对象等。
 
-NSManagedObjectContext 常用方法
+NSManagedObjectContext 常用方法：
 
 Method        | Introduce
 ------------- | -------------
--save:         |将数据对象保存到数据文件
--objectWithID: | 	查询指定 Managed Object ID 的数据对象
--deleteObject: |	将一个数据对象标记为删除，但是要等到 Context 提交更改时才真正删除数据对象
--undo |	回滚最后一步操作，这是都 undo/redo 的支持
--lock |	加锁，常用于多线程以及创建事务。同类接口还有：-unlock and -tryLock
--rollback|	还原数据文件内容
--reset	|清除缓存的 Managed Objects。只应当在添加或删除 Persistent Stores 时使用
--undoManager  |	返回当前 Context 所使用的 NSUndoManager
--assignObject:toPersistantStore: |	由于 Context 可以管理从不同数据文件而来的数据对象，这个接口的作用就是指定数据对象的存储数据文件（通过指定 PersistantStore 实现）
--executeFetchRequest:error: |	执行 Fetch Request 并返回所有匹配的数据对象
+save:         | 将数据对象保存到数据文件
+objectWithID: | 查询指定 Managed Object ID 的数据对象
+deleteObject: | 将一个数据对象标记为删除，但是要等到 Context 提交更改时才真正删除数据对象
+undo          | 回滚最后一步操作，这是都 undo/redo 的支持
+lock          | 加锁，常用于多线程以及创建事务。同类接口还有：-unlock and -tryLock
+rollback      | 还原数据文件内容
+reset         | 清除缓存的 Managed Objects。只应当在添加或删除 Persistent Stores 时使用
+undoManager   | 返回当前 Context 所使用的 NSUndoManager
+assignObject:toPersistantStore: |	由于 Context 可以管理从不同数据文件而来的数据对象，这个接口的作用就是指定数据对象的存储数据文件（通过指定 PersistantStore 实现）
+executeFetchRequest:error:      |	执行 Fetch Request 并返回所有匹配的数据对象
 
 ## 持久化存储协调器（Persistent store coordinator）
 
@@ -73,13 +86,66 @@ Method        | Introduce
 
 ![Persistent store coordinator](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/advanced_persistent_stack.jpg)
 
+### 使用
+
+使用 Core Data document 类型的应用程序，通常会从磁盘上的数据文中中读取或存储数据，这些底层的读写就由 Persistent Store Coordinator 来处理。一般我们无需与它直接打交道来读写文件，Managed Object Context 在背后已经为我们调用 Persistent Store Coordinator 做了这部分工作。
+
+NSPersistentStoreCoordinator 常用方法：
+
+Method        | Introduce
+------------- | -------------
+addPersistentStoreForURL: configuration:URL:options:error: | 装载数据存储，对应的卸载数据存储的接口为 removePersistentStore:error:
+migratePersistentStore: toURL:options:withType:error: | 迁移数据存储，效果与 "save as"相似，但是操作成功后，迁移前的数据存储不可再使用
+managedObjectIDForURIRepresentation: | 返回给定 URL所指示的数据存储的 object id，如果找不到匹配的数据存储则返回 nil
+persistentStoreForURL: |	返回指定路径的 Persistent Store
+URLForPersistentStore: |	返回指定 Persistent Store 的存储路径
+
 ## 抓取请求（Fetch request）
 
-抓取请求告诉代理对象上下文，我们想要抓取的实体，指定了比如约束了对象属性，或返回对象的顺序。抓取请求是NSFetchRequest的实例。返回指定的实体表现为NSEntityDescription的实例，约束条件表现为NSPredicate对象，排序为NSSortDescriptor的实例。这些类似于数据库SELECT语法的：table name, WHERE clause, and ORDER BY clauses。
+抓取请求告诉context，要抓取的托管对象的实体(Entity)，且选择性的指定了约束了对象属性，返回对象的顺序。请求是<a name="fenced-code-block"> NSFetchRequest </a>的实例。指定实体为<a name="fenced-code-block"> NSEntityDescription </a>的实例，约束条件为<a name="fenced-code-block"> NSPredicate </a>对象，排序条件为<a name="fenced-code-block"> NSSortDescriptor </a>的实例。以上类似于数据库SELECT语法的：table name, WHERE clause, and ORDER BY clauses。
 
-你可以通过给托管对象上下文发消息来执行抓取请求。上下文返回一个包含结果的数组。
+你可以通过给context发送executeFetchRequest:error:消息来执行抓取请求。context返回一个包含结果的托管对象数组。
 
 ![Fetch request](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/Art/fetch_flow_of_data.jpg)
+
+### 用法
+
+Fetch Requests 相当于一个查询语句，你必须指定要查询的 Entity。我们通过 Fetch Requests 向 Managed Object Context 查询符合条件的数据对象，以 NSArray 形式返回查询结果，如果我们没有设置任何查询条件，则返回该 Entity 的所有数据对象。我们可以使用谓词来设置查询条件，通常会将常用的 Fetch Requests 保存到 dictionary 以重复利用。
+
+示例：
+
+```objc
+NSManagedObjectContext * context  = [[NSApp delegate] managedObjectContext];  
+NSManagedObjectModel   * model    = [[NSApp delegate] managedObjectModel];  
+NSDictionary           * entities = [model entitiesByName];  
+NSEntityDescription    * entity   = [entities valueForKey:@"Post"];  
+  
+NSPredicate * predicate;  
+predicate = [NSPredicate predicateWithFormat:@"creationDate > %@", date];  
+                           
+NSSortDescriptor * sort = [[NSortDescriptor alloc] initWithKey:@"title"];  
+NSArray * sortDescriptors = [NSArray arrayWithObject: sort];  
+  
+NSFetchRequest * fetch = [[NSFetchRequest alloc] init];  
+[fetch setEntity: entity];  
+[fetch setPredicate: predicate];  
+[fetch setSortDescriptors: sortDescriptors];  
+  
+NSArray * results = [context executeFetchRequest:fetch error:nil];  
+[sort release];  
+[fetch release];
+```
+在上面代码中，我们查询在指定日期之后创建的 post，并将查询结果按照 title 排序返回。
+
+NSFetchRequest 常用方法：
+
+Method        | Introduce
+------------- | -------------
+setEntity:         | 设置你要查询的数据对象的类型（Entity）
+setPredicate:      | 设置查询条件
+setFetchLimit:     | 设置最大查询对象数目
+setSortDescriptors:| 设置查询结果的排序方法
+setAffectedStores: | 设置可以在哪些数据存储中查询
 
 ## 持久化存储（Persistent store）
 
@@ -93,6 +159,20 @@ Method        | Introduce
 
 ![Managed object model][Core Data stack url]
 
+### 用法
+
+模型有点像数据库的表结构，里面包含 Entry， 实体又包含三种 Property：Attribute（属性），RelationShip（关系）， Fetched Property（读取属性）。Model class 的名字多以 "Description" 结尾。我们可以看出：模型就是描述数据类型以及其关系的。
+
+主要的 Model class 有：   
+1. 数据模型（Managed Object Model）：NSManagedObjectModel  
+2. 实体（Entity）：NSEntityDescription - 抽象数据类型，相当于数据库中的表  
+3. 特性（Property）：NSPropertyDescription -	相当于数据库表中的一列   
+
+* Attribute：NSAttributeDescription	基本数值型属性（如Int16, BOOL, Date等类型的属性）   
+* Relationship：NSRelationshipDescription - 属性之间的关系  
+* Fetched Property：NSFetchedPropertyDescription - 查询属性（相当于数据库中的查询语句）
+
+
 ## 持久化对象存储（Persistent object store）
 
 持久化对象存储是你app里的对象和持久化存储中记录的映射。那些不同的持久化对象存储类代表不同Core Data支持的不同文件类型。你也可以实现自己想要支持的文件类型。
@@ -102,6 +182,52 @@ Method        | Introduce
 ## 映射模型（Mapping model）
 
 Core Data映射模型描述了一种迁移数据必须的转换，从源托管对象模型描述到目的模型描述。当你做个新版本的代理对象模型，你需要从旧图表迁移持久化数据到新图表。对于简单的模型修改，Core Data能够推断需要的映射。对于复杂的修改，你需要提供一个映射模型描述如果执行迁移。
+
+## Persistent Document
+
+NSPersistentDocument 是 NSDocument 的子类。 multi-document Core Data 应用程序使用它来简化对 Core Data 的操作。通常使用 NSPersistentDocument 的默认实现就足够了，它从 Info.plist 中读取 Document types 信息来决定数据的存储格式（xml,sqlite, binary）。
+
+NSPersistentDocument 常用方法：
+
+Method        | Introduce
+------------- | -------------
+managedObjectContext | 返回文档的 Managed Object Context，在多文档应用程序中，每个文档都有自己的 Context。
+managedObjectModel   | 返回文档的 Managed Object Model
+
+## 实体（Entity）
+
+Entity 相当于数据库中的一个表，它描述一种抽象数据类型，其对应的类为 NSManagedObject 或其子类。
+
+NSEntityDescription 常用方法:
+
+Method        | Introduce
+------------- | -------------
++insertNewObjectForEntityForName: inManagedObjectContext: | 工厂方法，根据给定的 Entity 描述，生成相应的 NSManagedObject 对象，并插入 ManagedObjectContext 中。
+-managedObjectClassName | 返回映射到 Entity 的 NSManagedObject 类名
+-attributesByName | 以名字为 key， 返回 Entity 中对应的 Attributes
+-relationshipsByName | 以名字为 key， 返回 Entity 中对应的 Relationships
+
+Property - NSPropertyDescription  
+Property 为 Entity 的特性，它相当于数据库表中的一列，或者 XML 文件中的 value-key 对中的 key。它可以描述实体数据(Attribute)，Entity之间的关系(RelationShip)，或查询属性(Fetched Property)。
+
+Attribute - NSAttributeDescription  
+Attribute 存储基本数据，如 NSString, NSNumber or NSDate 等。它可以有默认值，也可以使用正则表达式或其他条件对其值进行限定。一个属性可以是 optional 的。
+
+Relationship - NSRelationshipDescription  
+Relationship 描述 Entity，Property 之间的关系，可以是一对一，也可以是一对多的关系。
+
+数据插入代码：
+
+```objc
+NSManagedObjectContext * context = [[NSApp delegate] managedObjectContext];  
+NSManagedObject        * author  = nil;  
+      
+author = [NSEntityDescription insertNewObjectForEntityForName:@"Author"
+                                       inManagedObjectContext:context];
+[author setValue: @"nemo@pixar.com" forKey: @"email"];
+[context save:&error];
+```
+在上面代码中，我们先取得 NSManagedObjectContext，然后调用 NSEntityDescription 的方法，以 Author 为实体模型，生成对应的 NSManagedObject 对象，插入 NSManagedObjectContext 中，然后给这个对象设置特性 email 的值。
 
 ## 代码实现
 
@@ -116,4 +242,6 @@ Core Data映射模型描述了一种迁移数据必须的转换，从源托管�
 
 [Core Data Core Competencies](https://developer.apple.com/library/prerelease/mac/documentation/DataManagement/Devpedia-CoreData/coreDataOverview.html#//apple_ref/doc/uid/TP40010398-CH28-SW1)  
 [[Cocoa]深入浅出 Cocoa 之 Core Data（1）- 框架详解](http://blog.csdn.net/kesalin/article/details/6739319)  
-[[Cocoa]深入浅出 Cocoa 之 Core Data（2）- 手动编写代码](http://blog.csdn.net/kesalin/article/details/6746117)
+[[Cocoa]深入浅出 Cocoa 之 Core Data（2）- 手动编写代码](http://blog.csdn.net/kesalin/article/details/6746117)  
+[[Cocoa]深入浅出 Cocoa 之 Core Data（3）- 使用绑定](http://blog.csdn.net/kesalin/article/details/6757279)  
+[[Cocoa]深入浅出 Cocoa 之 Core Data（4）- 使用绑定](http://blog.csdn.net/kesalin/article/details/6757412)
